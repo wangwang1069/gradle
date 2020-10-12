@@ -41,6 +41,7 @@ Some plugins will break with this new version of Gradle, for example because the
 ==== Updates to default tool integration versions
 
 - JaCoCo has been updated to http://www.jacoco.org/jacoco/trunk/doc/changes.html[0.8.6].
+- CodeNarc has been updated to https://github.com/CodeNarc/CodeNarc/blob/v1.6.1/CHANGELOG.md[CodeNarc 2.0.0].
 
 ==== Updates to bundled Gradle dependencies
 
