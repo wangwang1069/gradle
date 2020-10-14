@@ -499,6 +499,10 @@ performanceTest.registerTestProject("gradleBuild", RemoteProject) {
     remoteUri = 'https://github.com/gradle/gradle'
     ref = "master"
 }
+performanceTest.registerTestProject("hugeGradleProject", RemoteProject) {
+    remoteUri = 'https://github.com/jjohannes/huge-gradle-project'
+    ref = "performance/baseline"
+}
 
 tasks.withType(JvmProjectGeneratorTask).configureEach {
     if (project.hasProperty("springDmPluginVersion")) {
