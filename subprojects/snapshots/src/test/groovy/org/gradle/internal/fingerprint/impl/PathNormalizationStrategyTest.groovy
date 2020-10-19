@@ -91,7 +91,7 @@ class PathNormalizationStrategyTest extends Specification {
     }
 
     def "sensitivity NAME_ONLY"() {
-        def fingerprints = collectFingerprints(NameOnlyFingerprintingStrategy.INSTANCE)
+        def fingerprints = collectFingerprints(NameOnlyFingerprintingStrategy.FINGERPRINT_DIRECTORIES)
         expect:
         (allFilesToFingerprint - emptyDir - resources).each { file ->
             assert fingerprints[file] == file.name
@@ -101,7 +101,7 @@ class PathNormalizationStrategyTest extends Specification {
     }
 
     def "sensitivity RELATIVE"() {
-        def fingerprints = collectFingerprints(new RelativePathFingerprintingStrategy(stringInterner))
+        def fingerprints = collectFingerprints(new RelativePathFingerprintingStrategy(stringInterner, emptyDirectorySensitivity))
         expect:
         fingerprints[jarFile1]                      == jarFile1.name
         fingerprints[jarFile2]                      == jarFile2.name

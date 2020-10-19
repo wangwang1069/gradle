@@ -34,16 +34,23 @@ import java.util.Map;
  */
 public class NameOnlyFingerprintingStrategy extends AbstractFingerprintingStrategy {
 
-    public static final NameOnlyFingerprintingStrategy INSTANCE = new NameOnlyFingerprintingStrategy();
+    public static final NameOnlyFingerprintingStrategy FINGERPRINT_DIRECTORIES = new NameOnlyFingerprintingStrategy(EmptyDirectorySensitivity.FINGERPRINT_EMPTY);
+    public static final NameOnlyFingerprintingStrategy IGNORE_DIRECTORIES = new NameOnlyFingerprintingStrategy(EmptyDirectorySensitivity.IGNORE_EMPTY);
     public static final String IDENTIFIER = "NAME_ONLY";
+    private final EmptyDirectorySensitivity emptyDirectorySensitivity;
 
-    private NameOnlyFingerprintingStrategy() {
+    private NameOnlyFingerprintingStrategy(EmptyDirectorySensitivity emptyDirectorySensitivity) {
         super(IDENTIFIER);
+        this.emptyDirectorySensitivity = emptyDirectorySensitivity;
     }
 
     @Override
     public String normalizePath(CompleteFileSystemLocationSnapshot snapshot) {
         return snapshot.getName();
+    }
+
+    private boolean shouldFingerprint(CompleteDirectorySnapshot directorySnapshot) {
+        return !(directorySnapshot.getChildren().isEmpty() && emptyDirectorySensitivity == EmptyDirectorySensitivity.IGNORE_EMPTY);
     }
 
     @Override
@@ -57,7 +64,7 @@ public class NameOnlyFingerprintingStrategy extends AbstractFingerprintingStrate
                 @Override
                 public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
                     String absolutePath = directorySnapshot.getAbsolutePath();
-                    if (processedEntries.add(absolutePath)) {
+                    if (processedEntries.add(absolutePath) && shouldFingerprint(directorySnapshot)) {
                         FileSystemLocationFingerprint fingerprint = isRoot() ? IgnoredPathFileSystemLocationFingerprint.DIRECTORY : new DefaultFileSystemLocationFingerprint(directorySnapshot.getName(), directorySnapshot);
                         builder.put(absolutePath, fingerprint);
                     }

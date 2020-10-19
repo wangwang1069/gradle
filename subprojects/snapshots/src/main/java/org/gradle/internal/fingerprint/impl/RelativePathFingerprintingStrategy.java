@@ -30,6 +30,8 @@ import org.gradle.internal.snapshot.RelativePathStringTracker;
 import java.util.HashSet;
 import java.util.Map;
 
+import static org.gradle.internal.fingerprint.impl.EmptyDirectorySensitivity.IGNORE_EMPTY;
+
 /**
  * Fingerprint {@link org.gradle.api.file.FileCollection}s normalizing the path to the relative path in a hierarchy.
  *
@@ -37,12 +39,14 @@ import java.util.Map;
  */
 public class RelativePathFingerprintingStrategy extends AbstractFingerprintingStrategy {
     public static final String IDENTIFIER = "RELATIVE_PATH";
+    private final EmptyDirectorySensitivity emptyDirectorySensitivity;
 
     private final Interner<String> stringInterner;
 
-    public RelativePathFingerprintingStrategy(Interner<String> stringInterner) {
+    public RelativePathFingerprintingStrategy(Interner<String> stringInterner, EmptyDirectorySensitivity emptyDirectorySensitivity) {
         super(IDENTIFIER);
         this.stringInterner = stringInterner;
+        this.emptyDirectorySensitivity = emptyDirectorySensitivity;
     }
 
     @Override
@@ -52,6 +56,10 @@ public class RelativePathFingerprintingStrategy extends AbstractFingerprintingSt
         } else {
             return snapshot.getName();
         }
+    }
+
+    private boolean shouldFingerprint(CompleteDirectorySnapshot directorySnapshot) {
+        return !(directorySnapshot.getChildren().isEmpty() && emptyDirectorySensitivity == IGNORE_EMPTY);
     }
 
     @Override
@@ -67,7 +75,7 @@ public class RelativePathFingerprintingStrategy extends AbstractFingerprintingSt
                     boolean isRoot = relativePathStringTracker.isRoot();
                     relativePathStringTracker.enter(directorySnapshot);
                     String absolutePath = directorySnapshot.getAbsolutePath();
-                    if (processedEntries.add(absolutePath)) {
+                    if (processedEntries.add(absolutePath) && shouldFingerprint(directorySnapshot)) {
                         FileSystemLocationFingerprint fingerprint = isRoot ? IgnoredPathFileSystemLocationFingerprint.DIRECTORY : new DefaultFileSystemLocationFingerprint(stringInterner.intern(relativePathStringTracker.getRelativePathString()), directorySnapshot);
                         builder.put(absolutePath, fingerprint);
                     }
