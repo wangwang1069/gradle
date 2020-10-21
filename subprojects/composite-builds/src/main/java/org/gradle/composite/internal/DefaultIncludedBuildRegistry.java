@@ -19,6 +19,7 @@ package org.gradle.composite.internal;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Maps;
 import org.gradle.api.GradleException;
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.component.BuildIdentifier;
 import org.gradle.api.internal.BuildDefinition;
 import org.gradle.api.internal.SettingsInternal;
@@ -45,6 +46,7 @@ import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.Map;
+import java.util.function.Function;
 
 @ServiceScope(Scopes.BuildTree.class)
 public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppable {
@@ -57,6 +59,7 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
 
     // TODO: Locking around this state
     private RootBuildState rootBuild;
+    private Function<RootBuildState, IncludedBuildState> rootIncludedBuildWrapperFactory;
     private final Map<BuildIdentifier, BuildState> buildsByIdentifier = Maps.newHashMap();
     private final Map<File, IncludedBuildState> includedBuildsByRootDir = Maps.newLinkedHashMap();
     private final Map<Path, File> includedBuildDirectoriesByPath = Maps.newLinkedHashMap();
@@ -85,7 +88,9 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
             throw new IllegalStateException("Root build already defined.");
         }
         rootBuild = new DefaultRootBuildState(buildDefinition, gradleLauncherFactory, listenerManager, owner);
+        rootIncludedBuildWrapperFactory = new RootIncludedBuildWrapperFactory(includedBuildFactory, buildDefinition);
         addBuild(rootBuild);
+
         return rootBuild;
     }
 
@@ -138,6 +143,9 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
     @Override
     public IncludedBuildState getIncludedBuild(final BuildIdentifier buildIdentifier) {
         BuildState includedBuildState = buildsByIdentifier.get(buildIdentifier);
+        if (includedBuildState == rootBuild) {
+            return rootIncludedBuildWrapperFactory.apply(rootBuild);
+        }
         if (!(includedBuildState instanceof IncludedBuildState)) {
             throw new IllegalArgumentException("Could not find " + buildIdentifier);
         }
@@ -232,6 +240,7 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
         if (buildDir == null) {
             throw new IllegalArgumentException("Included build must have a root directory defined");
         }
+        validateBuildDirectory(buildDir);
         IncludedBuildState includedBuild = includedBuildsByRootDir.get(buildDir);
         if (includedBuild == null) {
             if (rootBuild == null) {
@@ -256,6 +265,15 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
         }
         // TODO: else, verify that the build definition is the same
         return includedBuild;
+    }
+
+    private void validateBuildDirectory(File dir) {
+        if (!dir.exists()) {
+            throw new InvalidUserDataException(String.format("Included build '%s' does not exist.", dir));
+        }
+        if (!dir.isDirectory()) {
+            throw new InvalidUserDataException(String.format("Included build '%s' is not a directory.", dir));
+        }
     }
 
     private BuildIdentifier idFor(String buildName) {
@@ -287,5 +305,26 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
     @Override
     public void stop() {
         CompositeStoppable.stoppable(buildsByIdentifier.values()).stop();
+    }
+
+    private static class RootIncludedBuildWrapperFactory implements Function<RootBuildState, IncludedBuildState> {
+
+        private final IncludedBuildFactory includedBuildFactory;
+        private final BuildDefinition buildDefinition;
+
+        private RootIncludedBuildWrapperFactory(IncludedBuildFactory includedBuildFactory, BuildDefinition buildDefinition) {
+            this.includedBuildFactory = includedBuildFactory;
+            this.buildDefinition = buildDefinition;
+        }
+
+        @Override
+        public IncludedBuildState apply(RootBuildState rootBuild) {
+            return includedBuildFactory.createBuild(
+                rootBuild.getBuildIdentifier(),
+                rootBuild.getIdentityPath(),
+                buildDefinition,
+                false,
+                rootBuild);
+        }
     }
 }

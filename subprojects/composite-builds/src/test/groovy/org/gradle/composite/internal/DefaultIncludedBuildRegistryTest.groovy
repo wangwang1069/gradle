@@ -244,13 +244,16 @@ class DefaultIncludedBuildRegistryTest extends Specification {
         def rootBuild = rootBuild()
         registry.attachRootBuild(rootBuild)
 
-        def parent1Definition = Stub(BuildDefinition)
-        parent1Definition.name >> "parent"
+        def parent1Definition = Stub(BuildDefinition) {
+            getBuildRootDir() >> tmpDir.createDir('parent')
+            getName() >> 'parent'
+        }
         def parent1 = registry.addIncludedBuild(parent1Definition)
 
-        def buildDefinition = Stub(BuildDefinition)
-        buildDefinition.name >> "buildSrc"
-        buildDefinition.buildRootDir >> new File("d")
+        def buildDefinition = Stub(BuildDefinition) {
+            getBuildRootDir() >> tmpDir.createDir('buildSrc')
+            getName() >> 'buildSrc'
+        }
 
         expect:
         def nestedBuild1 = registry.addBuildSrcNestedBuild(buildDefinition, rootBuild)
