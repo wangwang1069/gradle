@@ -23,6 +23,7 @@ import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.specs.Spec;
 import org.gradle.execution.taskpath.ResolvedTaskPath;
 import org.gradle.execution.taskpath.TaskPathResolver;
+import org.gradle.internal.Pair;
 import org.gradle.internal.build.BuildStateRegistry;
 import org.gradle.util.NameMatcher;
 
@@ -55,24 +56,26 @@ public class TaskSelector {
         return getSelection(path, gradle.getDefaultProject());
     }
 
-    public Spec<Task> getFilter(String path) {
+
+        Pair<GradleInternal, Spec<Task>> getFilter(String path) {
         final ResolvedTaskPath taskPath = taskPathResolver.resolvePath(path, gradle.getDefaultProject(), buildStateRegistry.getIncludedBuilds());
         if (!taskPath.isQualified()) {
             ProjectInternal targetProject = taskPath.getProject();
             configurer.configure(targetProject);
             if (taskNameResolver.tryFindUnqualifiedTaskCheaply(taskPath.getTaskName(), taskPath.getProject())) {
                 // An exact match in the target project - can just filter tasks by path to avoid configuring sub-projects at this point
-                return new TaskPathSpec(targetProject, taskPath.getTaskName());
+                return Pair.of(taskPath.getProject().getGradle(), new TaskPathSpec(targetProject, taskPath.getTaskName()));
             }
         }
 
         final Set<Task> selectedTasks = getSelection(path, gradle.getDefaultProject()).getTasks();
-        return new Spec<Task>() {
+
+        return Pair.of(taskPath.getProject().getGradle(), new Spec<Task>() {
             @Override
             public boolean isSatisfiedBy(Task element) {
                 return !selectedTasks.contains(element);
             }
-        };
+        });
     }
 
     public TaskSelection getSelection(@Nullable String projectPath, @Nullable File root, String path) {

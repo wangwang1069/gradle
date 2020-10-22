@@ -138,7 +138,6 @@ class TaskExecutionInCompositeIntegrationTest extends AbstractIntegrationSpec {
         output.count(":other-plugin:jar") == 1
     }
 
-    @NotYetImplemented
     def "Can exclude tasks coming from included builds"() {
         setup:
         settingsFile << "includeBuild('other-build')"
@@ -152,14 +151,15 @@ class TaskExecutionInCompositeIntegrationTest extends AbstractIntegrationSpec {
             tasks.register('doSomething') { task ->
                 task.dependsOn setupTask
                 doLast {
-                    println 'do something'
+                    println 'Do something'
                 }
             }
         """
 
         expect:
         succeeds(":other-build:doSomething", "-x", ":other-build:setupTask")
-        output.contains(":other-build:setupTask SKIPPED")
+        output.contains("Do something")
+        !output.contains("Setup task")
     }
 
     def "Can pass options to task in included build"() {
