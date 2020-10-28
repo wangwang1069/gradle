@@ -29,7 +29,9 @@ import org.gradle.api.internal.changedetection.state.BuildSessionScopeFileTimeSt
 import org.gradle.api.internal.changedetection.state.CachingFileHasher;
 import org.gradle.api.internal.changedetection.state.CrossBuildFileHashCache;
 import org.gradle.api.internal.changedetection.state.DefaultResourceSnapshotterCacheService;
+import org.gradle.api.internal.changedetection.state.FileHasherStatistics;
 import org.gradle.api.internal.changedetection.state.GradleUserHomeScopeFileTimeStampInspector;
+import org.gradle.api.internal.changedetection.state.PropertiesFileFilter;
 import org.gradle.api.internal.changedetection.state.ResourceEntryFilter;
 import org.gradle.api.internal.changedetection.state.ResourceFilter;
 import org.gradle.api.internal.changedetection.state.ResourceSnapshotterCacheService;
@@ -81,6 +83,7 @@ import org.gradle.internal.os.OperatingSystem;
 import org.gradle.internal.serialize.HashCodeSerializer;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.snapshot.CaseSensitivity;
+import org.gradle.internal.snapshot.impl.DirectorySnapshotterStatistics;
 import org.gradle.internal.vfs.FileSystemAccess;
 import org.gradle.internal.vfs.VirtualFileSystem;
 import org.gradle.internal.vfs.impl.DefaultFileSystemAccess;
@@ -135,8 +138,10 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
     @VisibleForTesting
     public static final String DEPRECATED_VFS_DROP_PROPERTY = "org.gradle.unsafe.vfs.drop";
 
-    private static final int DEFAULT_MAX_HIERARCHIES_TO_WATCH = 50;
     public static final String MAX_HIERARCHIES_TO_WATCH_PROPERTY = "org.gradle.vfs.watch.hierarchies.max";
+
+    private static final int DEFAULT_MAX_HIERARCHIES_TO_WATCH = 50;
+    private static final int FILE_HASHER_MEMORY_CACHE_SIZE = 400000;
 
     public static boolean isDropVfs(StartParameter startParameter) {
         if (getSystemProperty(DEPRECATED_VFS_DROP_PROPERTY, startParameter.getSystemPropertiesArgs()) != null) {
@@ -173,6 +178,11 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
     }
 
     @Override
+    public void registerGlobalServices(ServiceRegistration registration) {
+        registration.addProvider(new GlobalScopeServices());
+    }
+
+    @Override
     public void registerGradleUserHomeServices(ServiceRegistration registration) {
         registration.addProvider(new GradleUserHomeServices());
     }
@@ -182,6 +192,16 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
         registration.addProvider(new BuildSessionServices());
     }
 
+    private static class GlobalScopeServices {
+        FileHasherStatistics.Collector createCachingFileHasherStatisticsCollector() {
+            return new FileHasherStatistics.Collector();
+        }
+
+        DirectorySnapshotterStatistics.Collector createDirectorySnapshotterStatisticsCollector() {
+            return new DirectorySnapshotterStatistics.Collector();
+        }
+    }
+
     @VisibleForTesting
     static class GradleUserHomeServices {
 
@@ -189,8 +209,15 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
             return new CrossBuildFileHashCache(null, cacheRepository, inMemoryCacheDecoratorFactory, CrossBuildFileHashCache.Kind.FILE_HASHES);
         }
 
-        FileHasher createCachingFileHasher(StringInterner stringInterner, CrossBuildFileHashCache fileStore, FileSystem fileSystem, GradleUserHomeScopeFileTimeStampInspector fileTimeStampInspector, StreamHasher streamHasher) {
-            CachingFileHasher fileHasher = new CachingFileHasher(new DefaultFileHasher(streamHasher), fileStore, stringInterner, fileTimeStampInspector, "fileHashes", fileSystem);
+        FileHasher createCachingFileHasher(
+            FileHasherStatistics.Collector statisticsCollector,
+            CrossBuildFileHashCache fileStore,
+            FileSystem fileSystem,
+            GradleUserHomeScopeFileTimeStampInspector fileTimeStampInspector,
+            StreamHasher streamHasher,
+            StringInterner stringInterner
+        ) {
+            CachingFileHasher fileHasher = new CachingFileHasher(new DefaultFileHasher(streamHasher), fileStore, stringInterner, fileTimeStampInspector, "fileHashes", fileSystem, FILE_HASHER_MEMORY_CACHE_SIZE, statisticsCollector);
             fileTimeStampInspector.attach(fileHasher);
             return fileHasher;
         }
@@ -246,7 +273,8 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
             StringInterner stringInterner,
             ListenerManager listenerManager,
             PatternSpecFactory patternSpecFactory,
-            FileSystemAccess.WriteListener writeListener
+            FileSystemAccess.WriteListener writeListener,
+            DirectorySnapshotterStatistics.Collector statisticsCollector
         ) {
             DefaultFileSystemAccess fileSystemAccess = new DefaultFileSystemAccess(
                 hasher,
@@ -254,6 +282,7 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
                 stat,
                 virtualFileSystem,
                 writeListener,
+                statisticsCollector,
                 DirectoryScanner.getDefaultExcludes()
             );
             listenerManager.addListener(new DefaultExcludesBuildListener(fileSystemAccess) {
@@ -316,7 +345,7 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
         }
 
         ClasspathFingerprinter createClasspathFingerprinter(ResourceSnapshotterCacheService resourceSnapshotterCacheService, FileCollectionSnapshotter fileCollectionSnapshotter, StringInterner stringInterner) {
-            return new DefaultClasspathFingerprinter(resourceSnapshotterCacheService, fileCollectionSnapshotter, ResourceFilter.FILTER_NOTHING, ResourceEntryFilter.FILTER_NOTHING, ResourceEntryFilter.FILTER_NOTHING, stringInterner);
+            return new DefaultClasspathFingerprinter(resourceSnapshotterCacheService, fileCollectionSnapshotter, ResourceFilter.FILTER_NOTHING, ResourceEntryFilter.FILTER_NOTHING, PropertiesFileFilter.FILTER_NOTHING, stringInterner);
         }
 
         ClasspathHasher createClasspathHasher(ClasspathFingerprinter fingerprinter, FileCollectionFactory fileCollectionFactory) {
@@ -338,9 +367,10 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
             FileHasher globalHasher,
             FileSystem fileSystem,
             StreamHasher streamHasher,
-            StringInterner stringInterner
+            StringInterner stringInterner,
+            FileHasherStatistics.Collector statisticsCollector
         ) {
-            CachingFileHasher localHasher = new CachingFileHasher(new DefaultFileHasher(streamHasher), cacheAccess, stringInterner, fileTimeStampInspector, "fileHashes", fileSystem);
+            CachingFileHasher localHasher = new CachingFileHasher(new DefaultFileHasher(streamHasher), cacheAccess, stringInterner, fileTimeStampInspector, "fileHashes", fileSystem, FILE_HASHER_MEMORY_CACHE_SIZE, statisticsCollector);
             return new SplitFileHasher(globalHasher, localHasher, globalCacheLocations);
         }
 
@@ -350,7 +380,8 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
             Stat stat,
             StringInterner stringInterner,
             VirtualFileSystem root,
-            FileSystemAccess.WriteListener writeListener
+            FileSystemAccess.WriteListener writeListener,
+            DirectorySnapshotterStatistics.Collector statisticsCollector
         ) {
             DefaultFileSystemAccess buildSessionsScopedVirtualFileSystem = new DefaultFileSystemAccess(
                 hasher,
@@ -358,6 +389,7 @@ public class VirtualFileSystemServices extends AbstractPluginServiceRegistry {
                 stat,
                 root,
                 writeListener,
+                statisticsCollector,
                 DirectoryScanner.getDefaultExcludes()
             );
 

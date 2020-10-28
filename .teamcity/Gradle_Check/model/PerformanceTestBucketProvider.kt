@@ -120,7 +120,7 @@ fun splitBucketsByScenarios(scenarios: List<PerformanceScenario>, testProjectToS
         .groupBy({ it.testProject }, { scenario ->
             listOf(testProjectToScenarioDurations, testProjectScenarioDurationsFallback)
                 .mapNotNull { it.getOrDefault(scenario.testProject, emptyList()).firstOrNull { duration -> duration.scenario == scenario.scenario } }
-                .first()
+                .firstOrNull() ?: throw IllegalArgumentException("No durations found for $scenario")
         })
         .entries
         .map { TestProjectDuration(it.key, it.value) }
@@ -277,7 +277,7 @@ fun createPerformanceTest(model: CIBuildModel, performanceTestCoverage: Performa
         performanceSubProject = "performance",
         testProjects = tests.keys.toList(),
         bucketIndex = bucketIndex,
-        extraParameters = " -PincludePerformanceTestScenarios=true"
+        extraParameters = "-PincludePerformanceTestScenarios=true"
     ) {
         tests.forEach { (testProject, scenarios) ->
             prepareScenariosStep(testProject, scenarios, performanceTestCoverage.os)()
@@ -285,6 +285,7 @@ fun createPerformanceTest(model: CIBuildModel, performanceTestCoverage: Performa
     }
 }
 
+private
 fun prepareScenariosStep(testProject: String, scenarios: List<Scenario>, os: Os): BuildSteps.() -> Unit {
     if (scenarios.isEmpty()) {
         throw IllegalArgumentException("Scenarios list must not be empty for $testProject")

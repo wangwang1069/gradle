@@ -17,7 +17,6 @@
 package org.gradle.composite.internal;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.Maps;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.component.BuildIdentifier;
@@ -45,6 +44,8 @@ import java.io.File;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -60,9 +61,9 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
     // TODO: Locking around this state
     private RootBuildState rootBuild;
     private Function<RootBuildState, IncludedBuildState> rootIncludedBuildWrapperFactory;
-    private final Map<BuildIdentifier, BuildState> buildsByIdentifier = Maps.newHashMap();
-    private final Map<File, IncludedBuildState> includedBuildsByRootDir = Maps.newLinkedHashMap();
-    private final Map<Path, File> includedBuildDirectoriesByPath = Maps.newLinkedHashMap();
+    private final Map<BuildIdentifier, BuildState> buildsByIdentifier = new HashMap<>();
+    private final Map<File, IncludedBuildState> includedBuildsByRootDir = new LinkedHashMap<>();
+    private final Map<Path, File> includedBuildDirectoriesByPath = new LinkedHashMap<>();
     private final Deque<IncludedBuildState> pendingIncludedBuilds = new ArrayDeque<>();
 
     public DefaultIncludedBuildRegistry(BuildTreeState owner, IncludedBuildFactory includedBuildFactory, IncludedBuildDependencySubstitutionsBuilder dependencySubstitutionsBuilder, GradleLauncherFactory gradleLauncherFactory, ListenerManager listenerManager) {

@@ -30,9 +30,9 @@ import org.gradle.api.provider.Provider;
 import org.gradle.internal.Try;
 import org.gradle.internal.UncheckedException;
 import org.gradle.internal.execution.DeferredResultProcessor;
+import org.gradle.internal.execution.ExecutionEngine;
 import org.gradle.internal.execution.InputChangesContext;
 import org.gradle.internal.execution.UnitOfWork;
-import org.gradle.internal.execution.WorkExecutor;
 import org.gradle.internal.execution.caching.CachingDisabledReason;
 import org.gradle.internal.execution.caching.CachingDisabledReasonCategory;
 import org.gradle.internal.execution.history.ExecutionHistoryStore;
@@ -86,7 +86,7 @@ public class DefaultTransformerInvocationFactory implements TransformerInvocatio
     private static final String OUTPUT_FILE_PATH_PREFIX = "o/";
 
     private final FileSystemAccess fileSystemAccess;
-    private final WorkExecutor workExecutor;
+    private final ExecutionEngine executionEngine;
     private final ArtifactTransformListener artifactTransformListener;
     private final TransformationWorkspaceProvider immutableWorkspaceProvider;
     private final FileCollectionFactory fileCollectionFactory;
@@ -94,7 +94,7 @@ public class DefaultTransformerInvocationFactory implements TransformerInvocatio
     private final BuildOperationExecutor buildOperationExecutor;
 
     public DefaultTransformerInvocationFactory(
-        WorkExecutor workExecutor,
+        ExecutionEngine executionEngine,
         FileSystemAccess fileSystemAccess,
         ArtifactTransformListener artifactTransformListener,
         TransformationWorkspaceProvider immutableWorkspaceProvider,
@@ -102,7 +102,7 @@ public class DefaultTransformerInvocationFactory implements TransformerInvocatio
         ProjectStateRegistry projectStateRegistry,
         BuildOperationExecutor buildOperationExecutor
     ) {
-        this.workExecutor = workExecutor;
+        this.executionEngine = executionEngine;
         this.fileSystemAccess = fileSystemAccess;
         this.artifactTransformListener = artifactTransformListener;
         this.immutableWorkspaceProvider = immutableWorkspaceProvider;
@@ -140,7 +140,7 @@ public class DefaultTransformerInvocationFactory implements TransformerInvocatio
             workspaceProvider
         );
 
-        return workExecutor.executeDeferred(execution, null, workspaceProvider.getIdentityCache(), new DeferredResultProcessor<ImmutableList<File>, CacheableInvocation<ImmutableList<File>>>() {
+        return executionEngine.executeDeferred(execution, null, workspaceProvider.getIdentityCache(), new DeferredResultProcessor<ImmutableList<File>, CacheableInvocation<ImmutableList<File>>>() {
             @Override
             public CacheableInvocation<ImmutableList<File>> processCachedOutput(Try<ImmutableList<File>> cachedOutput) {
                 return CacheableInvocation.cached(mapResult(cachedOutput));
@@ -374,14 +374,10 @@ public class DefaultTransformerInvocationFactory implements TransformerInvocatio
         }
 
         @Override
-        public void visitInputProperties(InputPropertyVisitor visitor) {
+        public void visitInputs(InputVisitor visitor) {
             // Emulate secondary inputs as a single property for now
             visitor.visitInputProperty(SECONDARY_INPUTS_HASH_PROPERTY_NAME, NON_IDENTITY,
                 () -> transformer.getSecondaryInputHash().toString());
-        }
-
-        @Override
-        public void visitInputFileProperties(InputFilePropertyVisitor visitor) {
             visitor.visitInputFileProperty(INPUT_ARTIFACT_PROPERTY_NAME, PRIMARY, NON_IDENTITY,
                 inputArtifactProvider,
                 () -> inputArtifactFingerprinter.fingerprint(ImmutableList.of(inputArtifactSnapshot)));
@@ -391,7 +387,7 @@ public class DefaultTransformerInvocationFactory implements TransformerInvocatio
         }
 
         @Override
-        public void visitOutputProperties(File workspace, OutputPropertyVisitor visitor) {
+        public void visitOutputs(File workspace, OutputVisitor visitor) {
             File outputDir = getOutputDir(workspace);
             File resultsFile = getResultsFile(workspace);
             visitor.visitOutputProperty(OUTPUT_DIRECTORY_PROPERTY_NAME, DIRECTORY,

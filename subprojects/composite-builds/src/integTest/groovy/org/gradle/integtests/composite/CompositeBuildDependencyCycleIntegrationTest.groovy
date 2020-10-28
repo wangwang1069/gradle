@@ -18,6 +18,7 @@ package org.gradle.integtests.composite
 
 import org.gradle.integtests.fixtures.build.BuildTestFile
 import org.gradle.integtests.fixtures.resolve.ResolveTestFixture
+import spock.lang.Ignore
 import spock.lang.Issue
 
 /**
@@ -86,10 +87,10 @@ class CompositeBuildDependencyCycleIntegrationTest extends AbstractCompositeBuil
         resolveFails(":resolveArtifacts")
 
         then:
-        failure.assertHasDescription("Circular dependency between the following tasks:")
-        failure.assertThatDescription(containsNormalizedString(":buildB:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildC:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildB:compileJava (*)"))
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:compileJava
+\\--- :buildC:compileJava
+     \\--- :buildB:compileJava (*)""")
     }
 
     def "indirect dependency cycle between included builds"() {
@@ -136,11 +137,11 @@ class CompositeBuildDependencyCycleIntegrationTest extends AbstractCompositeBuil
         resolveFails(":resolveArtifacts")
 
         then:
-        failure.assertHasDescription("Circular dependency between the following tasks:")
-        failure.assertThatDescription(containsNormalizedString(":buildB:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildC:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildD:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildB:compileJava (*)"))
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:compileJava
+\\--- :buildC:compileJava
+     \\--- :buildD:compileJava
+          \\--- :buildB:compileJava (*)""")
     }
 
     // Not actually a cycle, just documenting behaviour
@@ -211,10 +212,10 @@ class CompositeBuildDependencyCycleIntegrationTest extends AbstractCompositeBuil
         resolveFails(":resolveArtifacts")
 
         then:
-        failure.assertHasDescription("Circular dependency between the following tasks:")
-        failure.assertThatDescription(containsNormalizedString(":buildB:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildC:compileJava"))
-        failure.assertThatDescription(containsNormalizedString(":buildB:compileJava (*)"))
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:compileJava
+\\--- :buildC:compileJava
+     \\--- :buildB:compileJava (*)""")
     }
 
     def "dependency cycle between subprojects in an included multiproject build"() {
@@ -262,8 +263,10 @@ class CompositeBuildDependencyCycleIntegrationTest extends AbstractCompositeBuil
         resolveFails(":resolveArtifacts")
 
         then:
-        failure.assertHasDescription("Circular dependency between the following tasks:")
-        failure.assertThatDescription(containsNormalizedString(":buildB:b1:compileJava"))
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:b1:compileJava
+\\--- :buildB:b2:compileJava
+     \\--- :buildB:b1:compileJava (*)""")
     }
 
     @Issue("https://github.com/gradle/gradle/issues/6229")
@@ -302,6 +305,197 @@ class CompositeBuildDependencyCycleIntegrationTest extends AbstractCompositeBuil
 
         then:
         resolveSucceeds(":build")
+
+        assertTaskExecuted(":buildD", ":buildD-api:jar")
+        assertTaskExecuted(":buildE", ":buildE-api:jar")
+        assertTaskExecuted(":buildD", ":buildD-impl:jar")
+        assertTaskExecuted(":buildE", ":buildE-impl:jar")
+        assertTaskExecuted(":", ":jar")
+    }
+
+    def "cross-build resolve jars without task cycle"() {
+        given:
+        buildA.buildFile << """
+            task resolveJars {
+                dependsOn gradle.includedBuild('buildB').task(':b1:resolveJars')
+            }
+        """
+        buildB.buildFile << """
+            project(':b1') {
+                dependencies {
+                    implementation "org.test:buildC:1.0"
+                }
+                task resolveJars(type: Copy) {
+                    from configurations.runtimeClasspath
+                    into "\$buildDir/jars"
+                }
+            }
+        """
+        dependency buildC, "org.test:b2:1.0"
+
+        when:
+        resolveSucceeds(':resolveJars')
+
+        then:
+        assertTaskExecuted(':buildB', ":b2:jar")
+        assertTaskExecuted(':buildC', ":jar")
+        assertTaskExecuted(':buildB', ":b1:resolveJars")
+        assertTaskExecuted(':', ":resolveJars")
+    }
+
+    def "direct dependsOn cycle between builds including one another"() {
+        given:
+        buildA.buildFile << """
+            task a {
+                dependsOn gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildB.buildFile << """
+            task b {
+                dependsOn gradle.includedBuild('buildC').task(':c')
+            }
+        """
+        buildB.settingsFile << """
+            includeBuild('../buildC')
+        """
+        buildC.buildFile << """
+            task c {
+                dependsOn gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildC.settingsFile << """
+            includeBuild('../buildB')
+        """
+
+        when:
+        resolveFails(":a")
+
+        then:
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:b
+\\--- :buildC:c
+     \\--- :buildB:b (*)""")
+    }
+
+    // TODO: this ends up in a deadlock. Figure out if this is a valid use case and what to do with it.
+    @Ignore
+    def "direct mustRunAfter cycle between included builds including one another"() {
+        given:
+        buildA.buildFile << """
+            task a {
+                dependsOn gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildB.buildFile << """
+            task b {
+                dependsOn gradle.includedBuild('buildC').task(':c')
+            }
+        """
+        buildB.settingsFile << """
+            includeBuild('../buildC')
+        """
+        buildC.buildFile << """
+            task c {
+                mustRunAfter gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildC.settingsFile << """
+            includeBuild('../buildB')
+        """
+
+        when:
+        resolveFails(":a")
+
+        then:
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:b
+\\--- :buildC:c
+     \\--- :buildB:b (*)""")
+    }
+
+    // TODO: this ends up in a deadlock. Figure out if this is a valid use case and what to do with it.
+    @Ignore
+    def "indirect mustRunAfter cycle between included builds including one another"() {
+        given:
+        buildA.buildFile << """
+            task a {
+                dependsOn gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildB.buildFile << """
+            task b {
+                dependsOn gradle.includedBuild('buildC').task(':c')
+            }
+        """
+        buildB.settingsFile << """
+            includeBuild('../buildC')
+        """
+        buildC.buildFile << """
+            task c {
+                dependsOn gradle.includedBuild('buildD').task(':d')
+            }
+        """
+        buildC.settingsFile << """
+            includeBuild('../buildD')
+        """
+
+        def buildD = singleProjectBuild('buildD')
+        buildD.buildFile << """
+            task d {
+                mustRunAfter gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildD.settingsFile << """
+            includeBuild('../buildB')
+        """
+        includedBuilds << buildD
+
+        when:
+        resolveFails(":a")
+
+        then:
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:b
+\\--- :buildC:c
+     \\--- :buildD:d
+          \\--- :buildB:b (*)""")
+    }
+
+    // TODO: this does not respect the finalizer from buildC which should cause a cycle.
+    // Instead, :buildC:c, :buildB:b and :a are executed.
+    @Ignore
+    def "direct finalizedBy cycle between included builds including one another"() {
+        given:
+        buildA.buildFile << """
+            task a {
+                dependsOn gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildB.buildFile << """
+            task b {
+                dependsOn gradle.includedBuild('buildC').task(':c')
+            }
+        """
+        buildB.settingsFile << """
+            includeBuild('../buildC')
+        """
+        buildC.buildFile << """
+            task c {
+                finalizedBy gradle.includedBuild('buildB').task(':b')
+            }
+        """
+        buildC.settingsFile << """
+            includeBuild('../buildB')
+        """
+
+        when:
+        resolveFails(":a")
+
+        then:
+        failure.assertHasDescription("""Circular dependency between the following tasks:
+:buildB:b
+\\--- :buildC:c
+     \\--- :buildB:b (*)""")
     }
 
     protected void resolveSucceeds(String task) {

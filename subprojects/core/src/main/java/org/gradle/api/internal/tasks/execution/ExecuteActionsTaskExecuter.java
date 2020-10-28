@@ -56,10 +56,10 @@ import org.gradle.internal.exceptions.Contextual;
 import org.gradle.internal.exceptions.DefaultMultiCauseException;
 import org.gradle.internal.exceptions.MultiCauseException;
 import org.gradle.internal.execution.CachingResult;
+import org.gradle.internal.execution.ExecutionEngine;
 import org.gradle.internal.execution.ExecutionOutcome;
 import org.gradle.internal.execution.InputChangesContext;
 import org.gradle.internal.execution.UnitOfWork;
-import org.gradle.internal.execution.WorkExecutor;
 import org.gradle.internal.execution.WorkValidationException;
 import org.gradle.internal.execution.caching.CachingDisabledReason;
 import org.gradle.internal.execution.caching.CachingState;
@@ -122,7 +122,7 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
     private final TaskCacheabilityResolver taskCacheabilityResolver;
     private final FileCollectionFingerprinterRegistry fingerprinterRegistry;
     private final ClassLoaderHierarchyHasher classLoaderHierarchyHasher;
-    private final WorkExecutor workExecutor;
+    private final ExecutionEngine executionEngine;
     private final ListenerManager listenerManager;
     private final ReservedFileSystemLocationRegistry reservedFileSystemLocationRegistry;
     private final EmptySourceTaskSkipper emptySourceTaskSkipper;
@@ -140,7 +140,7 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
         TaskCacheabilityResolver taskCacheabilityResolver,
         FileCollectionFingerprinterRegistry fingerprinterRegistry,
         ClassLoaderHierarchyHasher classLoaderHierarchyHasher,
-        WorkExecutor workExecutor,
+        ExecutionEngine executionEngine,
         ListenerManager listenerManager,
         ReservedFileSystemLocationRegistry reservedFileSystemLocationRegistry,
         EmptySourceTaskSkipper emptySourceTaskSkipper,
@@ -157,7 +157,7 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
         this.taskCacheabilityResolver = taskCacheabilityResolver;
         this.fingerprinterRegistry = fingerprinterRegistry;
         this.classLoaderHierarchyHasher = classLoaderHierarchyHasher;
-        this.workExecutor = workExecutor;
+        this.executionEngine = executionEngine;
         this.listenerManager = listenerManager;
         this.reservedFileSystemLocationRegistry = reservedFileSystemLocationRegistry;
         this.emptySourceTaskSkipper = emptySourceTaskSkipper;
@@ -177,7 +177,7 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
     }
 
     private TaskExecuterResult executeIfValid(TaskInternal task, TaskStateInternal state, TaskExecutionContext context, TaskExecution work) {
-        CachingResult result = workExecutor.execute(work, context.getTaskExecutionMode().getRebuildReason().orElse(null));
+        CachingResult result = executionEngine.execute(work, context.getTaskExecutionMode().getRebuildReason().orElse(null));
         result.getExecutionResult().ifSuccessfulOrElse(
             executionResult -> state.setOutcome(TaskExecutionOutcome.valueOf(executionResult.getOutcome())),
             failure -> state.setOutcome(new TaskExecutionException(task, failure))
@@ -293,21 +293,17 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
 
             List<InputChangesAwareTaskAction> taskActions = task.getTaskActions();
             for (InputChangesAwareTaskAction taskAction : taskActions) {
-                visitor.visitAdditionalImplementation(taskAction.getActionImplementation(classLoaderHierarchyHasher));
+                visitor.visitImplementation(taskAction.getActionImplementation(classLoaderHierarchyHasher));
             }
         }
 
         @Override
-        public void visitInputProperties(InputPropertyVisitor visitor) {
+        public void visitInputs(InputVisitor visitor) {
             ImmutableSortedSet<InputPropertySpec> inputProperties = context.getTaskProperties().getInputProperties();
+            ImmutableSortedSet<InputFilePropertySpec> inputFileProperties = context.getTaskProperties().getInputFileProperties();
             for (InputPropertySpec inputProperty : inputProperties) {
                 visitor.visitInputProperty(inputProperty.getPropertyName(), NON_IDENTITY, () -> InputParameterUtils.prepareInputParameterValue(inputProperty, task));
             }
-        }
-
-        @Override
-        public void visitInputFileProperties(InputFilePropertyVisitor visitor) {
-            ImmutableSortedSet<InputFilePropertySpec> inputFileProperties = context.getTaskProperties().getInputFileProperties();
             for (InputFilePropertySpec inputFileProperty : inputFileProperties) {
                 Object value = inputFileProperty.getValue();
                 // SkipWhenEmpty implies incremental.
@@ -327,26 +323,18 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
         }
 
         @Override
-        public void visitOutputProperties(File workspace, OutputPropertyVisitor visitor) {
+        public void visitOutputs(File workspace, OutputVisitor visitor) {
             for (OutputFilePropertySpec property : context.getTaskProperties().getOutputFileProperties()) {
                 File outputFile = property.getOutputFile();
                 if (outputFile != null) {
                     visitor.visitOutputProperty(property.getPropertyName(), property.getOutputType(), outputFile, property.getPropertyFiles());
                 }
             }
-        }
-
-        @Override
-        public void visitLocalState(LocalStateVisitor visitor) {
             for (File localStateRoot : context.getTaskProperties().getLocalStateFiles()) {
-                visitor.visitLocalStateRoot(localStateRoot);
+                visitor.visitLocalState(localStateRoot);
             }
-        }
-
-        @Override
-        public void visitDestroyableRoots(DestroyableVisitor visitor) {
             for (File destroyableRoot : context.getTaskProperties().getDestroyableFiles()) {
-                visitor.visitDestroyableRoot(destroyableRoot);
+                visitor.visitDestroyable(destroyableRoot);
             }
         }
 

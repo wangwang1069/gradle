@@ -75,7 +75,10 @@ public abstract class AbstractBuildExperimentRunner implements BuildExperimentRu
         optionParser.accepts("profiler");
         ProfilerFactory.configureParser(optionParser);
         ProfilerFactory profilerFactory = ProfilerFactory.of(Collections.singletonList(profilerName));
-        return profilerFactory.createFromOptions(optionParser.parse());
+        String[] options = profilerName.equals("jprofiler")
+            ? new String[] {"--profile", "jprofiler", "--jprofiler-home", System.getenv("JPROFILER_HOME")}
+            : new String[] {};
+        return profilerFactory.createFromOptions(optionParser.parse(options));
     }
 
     protected ProfilerFlameGraphGenerator getFlameGraphGenerator() {
@@ -108,7 +111,7 @@ public abstract class AbstractBuildExperimentRunner implements BuildExperimentRu
 
     private static void copyTemplateTo(BuildExperimentSpec experiment, File workingDir) {
         try {
-            File templateDir = new TestProjectLocator().findProjectDir(experiment.getProjectName());
+            File templateDir = TestProjectLocator.findProjectDir(experiment.getProjectName());
             FileUtils.cleanDirectory(workingDir);
             FileUtils.copyDirectory(templateDir, workingDir);
         } catch (IOException ex) {

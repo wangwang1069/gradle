@@ -39,12 +39,15 @@ class BuildSrcApiChangePerformanceTest extends AbstractCrossVersionPerformanceTe
         runner.targetVersions = [targetVersion]
         runner.minimumBaseVersion = "6.8"
         runner.warmUpRuns = 3
+    }
+
+    def setupGradleOpts() {
         useG1GarbageCollectorOnJava8(runner)
     }
 
     def "buildSrc abi change"() {
         given:
-        runner.gradleOpts = runner.projectMemoryOptions
+        setupGradleOpts()
         runner.tasksToRun = ['help']
         runner.runs = determineNumberOfRuns(runner.testProject)
 
@@ -62,7 +65,7 @@ class BuildSrcApiChangePerformanceTest extends AbstractCrossVersionPerformanceTe
 
     def "buildSrc non-abi change"() {
         given:
-        runner.gradleOpts = runner.projectMemoryOptions
+        setupGradleOpts()
         runner.tasksToRun = ['help']
         runner.runs = determineNumberOfRuns(runner.testProject)
 

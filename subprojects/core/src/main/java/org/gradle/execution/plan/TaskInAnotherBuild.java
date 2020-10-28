@@ -35,7 +35,7 @@ import java.util.Set;
 
 public abstract class TaskInAnotherBuild extends TaskNode {
 
-    private final IncludedBuildTaskGraph taskGraph;
+    protected final IncludedBuildTaskGraph taskGraph;
 
     public static TaskInAnotherBuild of(
         TaskInternal task,
@@ -45,20 +45,19 @@ public abstract class TaskInAnotherBuild extends TaskNode {
         return new Resolved(task, buildIdentifierOf(task), currentBuildId, taskGraph);
     }
 
-    public static TaskInAnotherBuild ofUnresolved(
+    public static TaskInAnotherBuild of(
         Path taskIdentityPath,
         String taskPath,
         BuildIdentifier targetBuild,
         BuildIdentifier thisBuild,
         IncludedBuildTaskGraph taskGraph
     ) {
-        return new Unresolved(taskIdentityPath, taskPath, targetBuild, thisBuild, taskGraph);
+        return new Deferred(taskIdentityPath, taskPath, targetBuild, thisBuild, taskGraph);
     }
 
     protected IncludedBuildTaskResource.State state = IncludedBuildTaskResource.State.WAITING;
     private final BuildIdentifier thisBuild;
     private final BuildIdentifier targetBuild;
-    private boolean required;
 
     protected TaskInAnotherBuild(BuildIdentifier thisBuild, BuildIdentifier targetBuild, IncludedBuildTaskGraph taskGraph) {
         this.thisBuild = thisBuild;
@@ -134,21 +133,6 @@ public abstract class TaskInAnotherBuild extends TaskNode {
     @Override
     public boolean requiresMonitoring() {
         return true;
-    }
-
-    @Override
-    public void require() {
-        this.required = true;
-    }
-
-    @Override
-    public boolean isRequired() {
-        return required;
-    }
-
-    @Override
-    public boolean isIncludeInGraph() {
-        return required;
     }
 
     @Override
@@ -234,12 +218,13 @@ public abstract class TaskInAnotherBuild extends TaskNode {
         }
     }
 
-    private static class Unresolved extends TaskInAnotherBuild {
+    private static class Deferred extends TaskInAnotherBuild {
 
         private final Path taskIdentityPath;
         private final String taskPath;
+        private TaskInternal task;
 
-        public Unresolved(
+        public Deferred(
             Path taskIdentityPath,
             String taskPath,
             BuildIdentifier targetBuild, BuildIdentifier thisBuild,
@@ -262,7 +247,10 @@ public abstract class TaskInAnotherBuild extends TaskNode {
 
         @Override
         public TaskInternal getTask() {
-            throw new UnsupportedOperationException();
+            if (task == null) {
+                task = taskGraph.getTask(getTargetBuild(), getTaskPath());
+            }
+            return task;
         }
     }
 }
