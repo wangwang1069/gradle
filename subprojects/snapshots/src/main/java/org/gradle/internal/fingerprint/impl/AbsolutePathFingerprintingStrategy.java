@@ -28,6 +28,7 @@ import org.gradle.internal.snapshot.MissingFileSnapshot;
 import org.gradle.internal.snapshot.RegularFileSnapshot;
 import org.gradle.internal.snapshot.RootTrackingFileSystemSnapshotHierarchyVisitor;
 import org.gradle.internal.snapshot.SnapshotVisitResult;
+import org.gradle.internal.snapshot.UnreadableSnapshot;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -76,6 +77,11 @@ public class AbsolutePathFingerprintingStrategy extends AbstractFingerprintingSt
                             if (includeMissingRoots || !isRoot) {
                                 doVisitEntry(missingSnapshot);
                             }
+                        }
+
+                        @Override
+                        public void visitUnreadable(UnreadableSnapshot unreadableSnapshot) {
+                            throw unreadableSnapshot.rethrowOnAttemptedRead();
                         }
                     });
                     return SnapshotVisitResult.CONTINUE;

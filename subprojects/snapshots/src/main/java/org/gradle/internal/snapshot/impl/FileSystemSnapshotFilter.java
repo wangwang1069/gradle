@@ -29,6 +29,7 @@ import org.gradle.internal.snapshot.RegularFileSnapshot;
 import org.gradle.internal.snapshot.RelativePathTrackingFileSystemSnapshotHierarchyVisitor;
 import org.gradle.internal.snapshot.SnapshotVisitResult;
 import org.gradle.internal.snapshot.SnapshottingFilter;
+import org.gradle.internal.snapshot.UnreadableSnapshot;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -83,6 +84,11 @@ public class FileSystemSnapshotFilter {
 
                 @Override
                 public Boolean visitMissing(MissingFileSnapshot missingSnapshot) {
+                    return false;
+                }
+
+                @Override
+                public Boolean visitUnreadable(UnreadableSnapshot unreadableSnapshot) {
                     return false;
                 }
             });
