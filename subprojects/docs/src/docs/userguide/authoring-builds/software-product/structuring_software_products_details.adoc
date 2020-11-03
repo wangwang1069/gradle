@@ -1,0 +1,123 @@
+This chapter covers more details on selected topics related to <<structuring_software_products.adoc#,structuring and building a software product with Gradle>>.
+
+== Working with the software project
+
+If you work with Gradle from the command line, you have several options to interact with a build that is a composition of multiple builds:
+
+=== Using an umbrella build
+
+If all your builds are located in one folder structure, you can have an umbrella build in a root folder that includes all builds.
+You can then call tasks from the root project by addressing one of the builds.
+Usually, you would then put the Gradle wrapper into the root as well.
+<<The sample>> for structuring software project contains such an umbrella build in the root.
+You can address tasks from there:
+
+[listing.terminal.sample-command]
+----
+$ ./gradlew :server-application:app:bootRun
+
+$ ./gradlew :android-app:app:installDebug
+----
+
+The umbrella build is a good place to define cross-build [lifecycle tasks].
+For example, you can define a `checkFeatures` task for conveniently running all checks in selected components by adding a `build.gradle(.kts)` file to your umbrella build.
+
+----
+tasks.register("checkComponents") {
+    group = "verification"
+    description = "Run all feature tests"
+    dependsOn(gradle.includedBuild("admin-component").task(":config:check"))
+    dependsOn(gradle.includedBuild("user-component").task(":data:check"))
+    dependsOn(gradle.includedBuild("user-component").task(":table:check"))
+}
+----
+
+In your IDE, you can import the umbrella build and then will have all Gradle builds as projects/modules visible in the workspace.
+
+=== Working with components in isolation
+
+Independent of whether you have an umbrella build or not, you can work with each component independently.
+That is, you can pick any component build and build it individually.
+
+[listing.terminal.sample-command]
+----
+$ cd server-application
+$ ../gradlew :app:bootRun
+
+$ cd android-app
+$ ../gradlew :app:installDebug
+
+$ cd user-component
+$ ../gradlew check
+----
+
+You can also import components independently in the IDE.
+This allows you to focus only on the parts important for the component you work on in your IDEs workspace.
+It might also speed up the IDE performance in the case of a very large code base.
+
+[NOTE]
+If all components live in the same repository, you should only have one <<Gradle wrapper>> in the root of the repository.
+If you have an umbrella build there, you can use that to manage the wrapper.
+Currently, if you import a component in an IDE, it might have issues finding the wrapper and you might need to configure a Gradle installation manually.
+If your components are scattered over multiple repositories, each should have its own wrapper, but you should ensure that you upgrade them simultaneously.
+
+== Using multiple source repositories
+
+Multi-repo development is a well known alternative to mono-repo development.
+Both have advantages and disadvantages.
+It depends on many different factors which setup works best for the development of your product.
+
+Gradle aims to support both setups equally well.
+When you split your product into components, each represented by an independent build, switching a Gradle build from mono- to multi-repo development is simple.
+You place each build into a separate repository.
+
+Of course, you need to create some guidelines or tooling around this, so that builds can still find each other.
+A simple solution is that users who want to build a certain component need to clone all repositories of dependent components next to each other in a file hierarchy.
+If you follow this pattern, builds can find each other with `includeBuild("../other-component")` statements.
+If locations are more flexible, you can also <<invoke Gradle with `--include-build TODO` flags>> to provide locations dynamically.
+
+Another more evolved setup can involve versioning all components and, instead of including the source versions of all components, depend on published versions of them from binary repositories.
+This is described next.
+
+[[binary_vs_source_components]]
+== Publishing and using binary components
+
+You can also decide to <<publish your components to a binary repository>>.
+If you make the decision to do so at some point and you want to work with binary versions of certain components instead of the source version, you can simply do that by
+<<adding the repository to which you published>> instead of the corrsponding `includeBuild("...")` statements.
+If the components keep there coordinates, you do not need to adjust any dependencies.
+You just need to define versions for the components, ideally in your <<platform project>>.
+
+[[publish-convention-plugins]]
+=== Publishing components with convention plugins
+
+Note that for publishing build logic components you should, in addition to `maven-publish`, use the <<plugin publish plugin>> to publish so called _plugin markers_ that allows Gradle to find plugins by ID, even if they are located in a repository.
+You can use the TODO plugin for that even if you do not publish to the Gradle Plugin portal).
+
+```
+TODO Short description for local plugin publishing
+```
+
+
+[[settings_convention_plugins]]
+== Sharing repository and included build declarations between builds
+
+Each build has its own `settings.gradle(.kts)` file to describe the location of other components – as repositories with binary components and included builds.
+If components are developed independently, it often makes sense to define these individually for each one.
+So it is individually controlled where the other components originate from.
+And the sources it might vary by component - e.g. you might only include the builds that are needed to build a certain component and not all builds that make up the product.
+
+However, it may also lead to a lot of redundancy as you declare the same repositories and included builds in each `settings.gradle(.kts)` again.
+In particular, if all component builds life in the same repository.
+
+Similar to build scripts, you can also define _convention plugins_ for the `settings.gradle(.kts)` file to reuse configuration.
+For that, you should create a separate build.
+_Settings convention plugins_ for can be written in Groovy DSL or Kotlin DSL similar to other convention plugins.
+The script file name just has to end with `.settings.gradle(.kts)`.
+
+[WARNING]
+As of Gradle 6.8, settings plugins cannot be directly used form included builds.
+This will be improved in future Gradle versions.
+For now, you have to <<#publish-convention-plugins,publish the settings convention plugins>>.
+You may publish to a local folder if you do not use a remote repository.
+
