@@ -22,4 +22,5 @@ import org.gradle.util.Path;
 
 public interface IncludedBuildFactory {
     IncludedBuildState createBuild(BuildIdentifier buildIdentifier, Path identityPath, BuildDefinition buildDefinition, boolean isImplicit, BuildState owner);
+    IncludedBuildState wrapRootBuild(BuildIdentifier buildIdentifier, Path identityPath, BuildDefinition buildDefinition, BuildState owner);
 }

@@ -57,7 +57,7 @@ class CompositeBuildRootProjectIntegrationTest extends AbstractCompositeBuildInt
             """
         }
         buildA.buildFile << """
-            // add lifecycle task here since we can not call the task of buildB directly yet - https://github.com/gradle/gradle/issues/2533
+           // add lifecycle task here since we can not call the task of buildB directly yet - https://github.com/gradle/gradle/issues/2533
            tasks.register("buildBJar") {
                 dependsOn(gradle.includedBuild("buildB").task(":jar"))
             }
@@ -70,7 +70,6 @@ class CompositeBuildRootProjectIntegrationTest extends AbstractCompositeBuildInt
         execute(buildA, "buildBJar")
 
         then:
-        //failure.assertHasDescription("Could not find build ':'")
         result.assertTaskExecuted(":buildB:compileJava")
         result.assertTaskExecuted(":compileJava")
     }

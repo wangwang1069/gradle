@@ -119,11 +119,11 @@ class CompositeBuildIncludeCycleIntegrationTest extends AbstractCompositeBuildIn
         """
 
         when:
-        fails(buildA, 'task1')
+        execute(buildA, 'task1')
 
         then:
-        // If we get here, the tasks were all found and registered. Once the cycle restrictions back to the root build are removed, this test should pass.
-        failure.assertHasDescription("Could not find build ':'")
-        // result.assertTaskExecuted(':task3', ':buildB:task2', 'task1')
+        result.assertTaskExecuted(':task3')
+        result.assertTaskExecuted(':buildB:task2')
+        result.assertTaskExecuted(':task1')
     }
 }

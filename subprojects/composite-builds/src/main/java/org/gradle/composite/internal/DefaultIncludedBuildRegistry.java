@@ -47,7 +47,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 @ServiceScope(Scopes.BuildTree.class)
 public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppable {
@@ -60,7 +59,7 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
 
     // TODO: Locking around this state
     private RootBuildState rootBuild;
-    private Function<RootBuildState, IncludedBuildState> rootIncludedBuildWrapperFactory;
+    private IncludedBuildState rootIncludedBuild;
     private final Map<BuildIdentifier, BuildState> buildsByIdentifier = new HashMap<>();
     private final Map<File, IncludedBuildState> includedBuildsByRootDir = new LinkedHashMap<>();
     private final Map<Path, File> includedBuildDirectoriesByPath = new LinkedHashMap<>();
@@ -89,7 +88,12 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
             throw new IllegalStateException("Root build already defined.");
         }
         rootBuild = new DefaultRootBuildState(buildDefinition, gradleLauncherFactory, listenerManager, owner);
-        rootIncludedBuildWrapperFactory = new RootIncludedBuildWrapperFactory(includedBuildFactory, buildDefinition);
+        rootIncludedBuild = includedBuildFactory.wrapRootBuild(
+            rootBuild.getBuildIdentifier(),
+            rootBuild.getIdentityPath(),
+            buildDefinition,
+            rootBuild);
+        //addBuild(rootIncludedBuild);
         addBuild(rootBuild);
 
         return rootBuild;
@@ -145,7 +149,7 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
     public IncludedBuildState getIncludedBuild(final BuildIdentifier buildIdentifier) {
         BuildState includedBuildState = buildsByIdentifier.get(buildIdentifier);
         if (includedBuildState == rootBuild) {
-            return rootIncludedBuildWrapperFactory.apply(rootBuild);
+            return rootIncludedBuild;
         }
         if (!(includedBuildState instanceof IncludedBuildState)) {
             throw new IllegalArgumentException("Could not find " + buildIdentifier);
@@ -303,24 +307,4 @@ public class DefaultIncludedBuildRegistry implements BuildStateRegistry, Stoppab
         CompositeStoppable.stoppable(buildsByIdentifier.values()).stop();
     }
 
-    private static class RootIncludedBuildWrapperFactory implements Function<RootBuildState, IncludedBuildState> {
-
-        private final IncludedBuildFactory includedBuildFactory;
-        private final BuildDefinition buildDefinition;
-
-        private RootIncludedBuildWrapperFactory(IncludedBuildFactory includedBuildFactory, BuildDefinition buildDefinition) {
-            this.includedBuildFactory = includedBuildFactory;
-            this.buildDefinition = buildDefinition;
-        }
-
-        @Override
-        public IncludedBuildState apply(RootBuildState rootBuild) {
-            return includedBuildFactory.createBuild(
-                rootBuild.getBuildIdentifier(),
-                rootBuild.getIdentityPath(),
-                buildDefinition,
-                false,
-                rootBuild);
-        }
-    }
 }

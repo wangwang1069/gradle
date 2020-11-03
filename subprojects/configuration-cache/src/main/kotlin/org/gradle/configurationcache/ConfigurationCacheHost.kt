@@ -26,6 +26,7 @@ import org.gradle.api.internal.initialization.ScriptHandlerFactory
 import org.gradle.api.internal.project.IProjectFactory
 import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.api.internal.project.ProjectStateRegistry
+import org.gradle.composite.internal.DefaultIncludedBuild
 import org.gradle.configuration.project.ConfigureProjectBuildOperationType
 import org.gradle.configurationcache.build.ConfigurationCacheIncludedBuildState
 import org.gradle.execution.plan.Node
@@ -221,6 +222,21 @@ class ConfigurationCacheHost internal constructor(
             identityPath,
             buildDefinition,
             isImplicit,
+            owner,
+            service<WorkerLeaseService>().currentWorkerLease
+        )
+
+        override fun wrapRootBuild(
+            buildIdentifier: BuildIdentifier,
+            identityPath: Path,
+            buildDefinition: BuildDefinition,
+            owner: BuildState
+        ): IncludedBuildState = service<Instantiator>().newInstance(
+            DefaultIncludedBuild::class.java,
+            buildIdentifier,
+            identityPath,
+            buildDefinition,
+            false,
             owner,
             service<WorkerLeaseService>().currentWorkerLease
         )

@@ -46,4 +46,17 @@ public class DefaultIncludedBuildFactory implements IncludedBuildFactory {
             workerLeaseService.getCurrentWorkerLease()
         );
     }
+
+    @Override
+    public IncludedBuildState wrapRootBuild(BuildIdentifier buildIdentifier, Path identityPath, BuildDefinition buildDefinition, BuildState owner) {
+        return instantiator.newInstance(
+            DefaultIncludedBuild.class,
+            buildIdentifier,
+            identityPath,
+            buildDefinition,
+            false,
+            owner,
+            workerLeaseService.getWorkerLease()
+        );
+    }
 }
