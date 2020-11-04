@@ -34,23 +34,19 @@ import java.util.Map;
  */
 public class NameOnlyFingerprintingStrategy extends AbstractFingerprintingStrategy {
 
-    public static final NameOnlyFingerprintingStrategy FINGERPRINT_DIRECTORIES = new NameOnlyFingerprintingStrategy(EmptyDirectorySensitivity.FINGERPRINT_EMPTY);
-    public static final NameOnlyFingerprintingStrategy IGNORE_DIRECTORIES = new NameOnlyFingerprintingStrategy(EmptyDirectorySensitivity.IGNORE_EMPTY);
+    public static final NameOnlyFingerprintingStrategy FINGERPRINT_DIRECTORIES = new NameOnlyFingerprintingStrategy(DirectorySensitivity.FINGERPRINT_DIRECTORIES);
+    public static final NameOnlyFingerprintingStrategy IGNORE_DIRECTORIES = new NameOnlyFingerprintingStrategy(DirectorySensitivity.IGNORE_DIRECTORIES);
     public static final String IDENTIFIER = "NAME_ONLY";
-    private final EmptyDirectorySensitivity emptyDirectorySensitivity;
+    private final DirectorySensitivity directorySensitivity;
 
-    private NameOnlyFingerprintingStrategy(EmptyDirectorySensitivity emptyDirectorySensitivity) {
+    private NameOnlyFingerprintingStrategy(DirectorySensitivity directorySensitivity) {
         super(IDENTIFIER);
-        this.emptyDirectorySensitivity = emptyDirectorySensitivity;
+        this.directorySensitivity = directorySensitivity;
     }
 
     @Override
     public String normalizePath(CompleteFileSystemLocationSnapshot snapshot) {
         return snapshot.getName();
-    }
-
-    private boolean shouldFingerprint(CompleteDirectorySnapshot directorySnapshot) {
-        return !(directorySnapshot.getChildren().isEmpty() && emptyDirectorySensitivity == EmptyDirectorySensitivity.IGNORE_EMPTY);
     }
 
     @Override
@@ -64,7 +60,7 @@ public class NameOnlyFingerprintingStrategy extends AbstractFingerprintingStrate
                 @Override
                 public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
                     String absolutePath = directorySnapshot.getAbsolutePath();
-                    if (processedEntries.add(absolutePath) && shouldFingerprint(directorySnapshot)) {
+                    if (processedEntries.add(absolutePath) && directorySensitivity != DirectorySensitivity.IGNORE_DIRECTORIES) {
                         FileSystemLocationFingerprint fingerprint = isRoot() ? IgnoredPathFileSystemLocationFingerprint.DIRECTORY : new DefaultFileSystemLocationFingerprint(directorySnapshot.getName(), directorySnapshot);
                         builder.put(absolutePath, fingerprint);
                     }

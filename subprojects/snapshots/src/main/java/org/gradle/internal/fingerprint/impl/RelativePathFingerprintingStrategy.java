@@ -30,7 +30,7 @@ import org.gradle.internal.snapshot.RelativePathStringTracker;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.gradle.internal.fingerprint.impl.EmptyDirectorySensitivity.IGNORE_EMPTY;
+import static org.gradle.internal.fingerprint.impl.DirectorySensitivity.IGNORE_DIRECTORIES;
 
 /**
  * Fingerprint {@link org.gradle.api.file.FileCollection}s normalizing the path to the relative path in a hierarchy.
@@ -39,14 +39,14 @@ import static org.gradle.internal.fingerprint.impl.EmptyDirectorySensitivity.IGN
  */
 public class RelativePathFingerprintingStrategy extends AbstractFingerprintingStrategy {
     public static final String IDENTIFIER = "RELATIVE_PATH";
-    private final EmptyDirectorySensitivity emptyDirectorySensitivity;
+    private final DirectorySensitivity directorySensitivity;
 
     private final Interner<String> stringInterner;
 
-    public RelativePathFingerprintingStrategy(Interner<String> stringInterner, EmptyDirectorySensitivity emptyDirectorySensitivity) {
+    public RelativePathFingerprintingStrategy(Interner<String> stringInterner, DirectorySensitivity directorySensitivity) {
         super(IDENTIFIER);
         this.stringInterner = stringInterner;
-        this.emptyDirectorySensitivity = emptyDirectorySensitivity;
+        this.directorySensitivity = directorySensitivity;
     }
 
     @Override
@@ -56,10 +56,6 @@ public class RelativePathFingerprintingStrategy extends AbstractFingerprintingSt
         } else {
             return snapshot.getName();
         }
-    }
-
-    private boolean shouldFingerprint(CompleteDirectorySnapshot directorySnapshot) {
-        return !(directorySnapshot.getChildren().isEmpty() && emptyDirectorySensitivity == IGNORE_EMPTY);
     }
 
     @Override
@@ -75,7 +71,7 @@ public class RelativePathFingerprintingStrategy extends AbstractFingerprintingSt
                     boolean isRoot = relativePathStringTracker.isRoot();
                     relativePathStringTracker.enter(directorySnapshot);
                     String absolutePath = directorySnapshot.getAbsolutePath();
-                    if (processedEntries.add(absolutePath) && shouldFingerprint(directorySnapshot)) {
+                    if (processedEntries.add(absolutePath) && directorySensitivity != IGNORE_DIRECTORIES) {
                         FileSystemLocationFingerprint fingerprint = isRoot ? IgnoredPathFileSystemLocationFingerprint.DIRECTORY : new DefaultFileSystemLocationFingerprint(stringInterner.intern(relativePathStringTracker.getRelativePathString()), directorySnapshot);
                         builder.put(absolutePath, fingerprint);
                     }
