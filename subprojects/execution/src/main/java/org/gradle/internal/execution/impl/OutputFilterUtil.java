@@ -24,6 +24,7 @@ import org.gradle.internal.fingerprint.FileSystemLocationFingerprint;
 import org.gradle.internal.snapshot.CompleteDirectorySnapshot;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot.FileSystemLocationSnapshotVisitor;
+import org.gradle.internal.snapshot.FileSystemLeafSnapshot;
 import org.gradle.internal.snapshot.FileSystemSnapshot;
 import org.gradle.internal.snapshot.FileSystemSnapshotHierarchyVisitor;
 import org.gradle.internal.snapshot.MerkleDirectorySnapshotBuilder;
@@ -143,7 +144,7 @@ public class OutputFilterUtil {
 
         @Override
         public void enterDirectory(CompleteDirectorySnapshot directorySnapshot, boolean isRoot) {
-            merkleBuilder.preVisitDirectory();
+            merkleBuilder.enterDirectory();
         }
 
         @Override
@@ -180,14 +181,16 @@ public class OutputFilterUtil {
             if (merkleBuilder == null) {
                 newRootsBuilder.add(snapshot);
             } else {
-                merkleBuilder.visitEntry(snapshot);
+                if (snapshot instanceof FileSystemLeafSnapshot) {
+                    merkleBuilder.visitLeafElement((FileSystemLeafSnapshot) snapshot);
+                }
             }
         }
 
         @Override
         public void leaveDirectory(CompleteDirectorySnapshot directorySnapshot, boolean isRoot) {
             boolean isOutputDir = predicate.test(directorySnapshot, isRoot);
-            boolean includedDir = merkleBuilder.postVisitDirectory(isOutputDir, directorySnapshot.getAccessType(), directorySnapshot.getAbsolutePath(), directorySnapshot.getName());
+            boolean includedDir = merkleBuilder.leaveDirectory(isOutputDir, directorySnapshot.getAccessType(), directorySnapshot.getAbsolutePath(), directorySnapshot.getName());
             if (!includedDir) {
                 currentRootFiltered = true;
                 hasBeenFiltered = true;

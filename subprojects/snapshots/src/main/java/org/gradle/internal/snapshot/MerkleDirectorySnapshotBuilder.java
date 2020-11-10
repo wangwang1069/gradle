@@ -20,7 +20,6 @@ import org.gradle.internal.file.FileMetadata.AccessType;
 import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.hash.Hasher;
 import org.gradle.internal.hash.Hashing;
-import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot.FileSystemLocationSnapshotVisitor;
 
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
@@ -47,25 +46,15 @@ public class MerkleDirectorySnapshotBuilder {
         addLevel();
     }
 
-    public void preVisitDirectory() {
+    public void enterDirectory() {
         addLevel();
     }
 
-    public void visitEntry(CompleteFileSystemLocationSnapshot snapshot) {
-        snapshot.accept(new FileSystemLocationSnapshotVisitor() {
-            @Override
-            public void visitRegularFile(RegularFileSnapshot fileSnapshot) {
-                collectResult(snapshot);
-            }
-
-            @Override
-            public void visitMissing(MissingFileSnapshot missingSnapshot) {
-                collectResult(snapshot);
-            }
-        });
+    public void visitLeafElement(FileSystemLeafSnapshot snapshot) {
+        collectResult(snapshot);
     }
 
-    public boolean postVisitDirectory(boolean includeEmpty, AccessType accessType, String absolutePath, String name) {
+    public boolean leaveDirectory(boolean includeEmpty, AccessType accessType, String absolutePath, String name) {
         List<CompleteFileSystemLocationSnapshot> children = levelHolder.removeLast();
         if (children.isEmpty() && !includeEmpty) {
             return false;

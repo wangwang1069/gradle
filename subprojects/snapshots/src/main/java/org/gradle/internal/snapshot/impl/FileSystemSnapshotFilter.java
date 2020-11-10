@@ -21,6 +21,7 @@ import org.gradle.internal.RelativePathSupplier;
 import org.gradle.internal.snapshot.CompleteDirectorySnapshot;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot.FileSystemLocationSnapshotTransformer;
+import org.gradle.internal.snapshot.FileSystemLeafSnapshot;
 import org.gradle.internal.snapshot.FileSystemSnapshot;
 import org.gradle.internal.snapshot.MerkleDirectorySnapshotBuilder;
 import org.gradle.internal.snapshot.MissingFileSnapshot;
@@ -59,7 +60,7 @@ public class FileSystemSnapshotFilter {
 
         @Override
         public void enterDirectory(CompleteDirectorySnapshot directorySnapshot, RelativePathSupplier relativePath) {
-            builder.preVisitDirectory();
+            builder.enterDirectory();
         }
 
         @Override
@@ -86,7 +87,9 @@ public class FileSystemSnapshotFilter {
                 }
             });
             if (forceInclude || predicate.test(snapshot, relativePathForFiltering)) {
-                builder.visitEntry(snapshot);
+                if (snapshot instanceof FileSystemLeafSnapshot) {
+                    builder.visitLeafElement((FileSystemLeafSnapshot) snapshot);
+                }
                 result = SnapshotVisitResult.CONTINUE;
             } else {
                 hasBeenFiltered.set(true);
@@ -97,7 +100,7 @@ public class FileSystemSnapshotFilter {
 
         @Override
         public void leaveDirectory(CompleteDirectorySnapshot directorySnapshot, RelativePathSupplier relativePath, String parentName) {
-            builder.postVisitDirectory(true, directorySnapshot.getAccessType(), directorySnapshot.getAbsolutePath(), directorySnapshot.getName());
+            builder.leaveDirectory(true, directorySnapshot.getAccessType(), directorySnapshot.getAbsolutePath(), directorySnapshot.getName());
         }
     }
 }

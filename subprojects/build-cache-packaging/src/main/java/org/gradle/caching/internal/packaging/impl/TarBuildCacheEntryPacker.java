@@ -274,13 +274,13 @@ public class TarBuildCacheEntryPacker implements BuildCacheEntryPacker {
         RelativePathParser parser = new RelativePathParser(rootEntry.getName());
 
         MerkleDirectorySnapshotBuilder builder = MerkleDirectorySnapshotBuilder.noSortingRequired();
-        builder.preVisitDirectory();
+        builder.enterDirectory();
 
         TarArchiveEntry entry;
 
         while ((entry = input.getNextTarEntry()) != null) {
             boolean isDir = entry.isDirectory();
-            boolean outsideOfRoot = parser.nextPath(entry.getName(), isDir, (path, name) -> builder.postVisitDirectory(true, AccessType.DIRECT, stringInterner.intern(path), stringInterner.intern(name)));
+            boolean outsideOfRoot = parser.nextPath(entry.getName(), isDir, (path, name) -> builder.leaveDirectory(true, AccessType.DIRECT, stringInterner.intern(path), stringInterner.intern(name)));
             if (outsideOfRoot) {
                 break;
             }
@@ -290,15 +290,15 @@ public class TarBuildCacheEntryPacker implements BuildCacheEntryPacker {
             if (isDir) {
                 FileUtils.forceMkdir(file);
                 chmodUnpackedFile(entry, file);
-                builder.preVisitDirectory();
+                builder.enterDirectory();
             } else {
                 RegularFileSnapshot fileSnapshot = unpackFile(input, entry, file, parser.getName());
-                builder.visitEntry(fileSnapshot);
+                builder.visitLeafElement(fileSnapshot);
             }
         }
 
-        parser.exitToRoot((path, name) -> builder.postVisitDirectory(true, AccessType.DIRECT, stringInterner.intern(path), stringInterner.intern(name)));
-        builder.postVisitDirectory(true, AccessType.DIRECT, stringInterner.intern(treeRoot.getAbsolutePath()), stringInterner.intern(treeRoot.getName()));
+        parser.exitToRoot((path, name) -> builder.leaveDirectory(true, AccessType.DIRECT, stringInterner.intern(path), stringInterner.intern(name)));
+        builder.leaveDirectory(true, AccessType.DIRECT, stringInterner.intern(treeRoot.getAbsolutePath()), stringInterner.intern(treeRoot.getName()));
 
         snapshots.put(treeName, builder.getResult());
         return entry;
