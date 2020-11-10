@@ -143,7 +143,7 @@ public class OutputFilterUtil {
 
         @Override
         public void enterDirectory(CompleteDirectorySnapshot directorySnapshot, boolean isRoot) {
-            merkleBuilder.preVisitDirectory(directorySnapshot);
+            merkleBuilder.preVisitDirectory();
         }
 
         @Override
@@ -187,7 +187,7 @@ public class OutputFilterUtil {
         @Override
         public void leaveDirectory(CompleteDirectorySnapshot directorySnapshot, boolean isRoot) {
             boolean isOutputDir = predicate.test(directorySnapshot, isRoot);
-            boolean includedDir = merkleBuilder.postVisitDirectory(isOutputDir, directorySnapshot.getAccessType(), directorySnapshot.getName());
+            boolean includedDir = merkleBuilder.postVisitDirectory(isOutputDir, directorySnapshot.getAccessType(), directorySnapshot.getAbsolutePath(), directorySnapshot.getName());
             if (!includedDir) {
                 currentRootFiltered = true;
                 hasBeenFiltered = true;

@@ -32,7 +32,6 @@ public class MerkleDirectorySnapshotBuilder {
     private static final HashCode DIR_SIGNATURE = Hashing.signature("DIR");
 
     private final Deque<List<CompleteFileSystemLocationSnapshot>> levelHolder = new ArrayDeque<>();
-    private final Deque<String> directoryAbsolutePaths = new ArrayDeque<>();
     private final boolean sortingRequired;
 
     public static MerkleDirectorySnapshotBuilder sortingRequired() {
@@ -48,13 +47,8 @@ public class MerkleDirectorySnapshotBuilder {
         addLevel();
     }
 
-    public void preVisitDirectory(String absolutePath) {
-        directoryAbsolutePaths.addLast(absolutePath);
+    public void preVisitDirectory() {
         addLevel();
-    }
-
-    public void preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-        preVisitDirectory(directorySnapshot.getAbsolutePath());
     }
 
     public void visitEntry(CompleteFileSystemLocationSnapshot snapshot) {
@@ -71,13 +65,8 @@ public class MerkleDirectorySnapshotBuilder {
         });
     }
 
-    public void postVisitDirectory(AccessType accessType, String name) {
-        postVisitDirectory(true, accessType, name);
-    }
-
-    public boolean postVisitDirectory(boolean includeEmpty, AccessType accessType, String name) {
+    public boolean postVisitDirectory(boolean includeEmpty, AccessType accessType, String absolutePath, String name) {
         List<CompleteFileSystemLocationSnapshot> children = levelHolder.removeLast();
-        String absolutePath = directoryAbsolutePaths.removeLast();
         if (children.isEmpty() && !includeEmpty) {
             return false;
         }

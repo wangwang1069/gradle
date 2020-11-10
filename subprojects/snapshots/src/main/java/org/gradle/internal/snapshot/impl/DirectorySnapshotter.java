@@ -207,7 +207,7 @@ public class DirectorySnapshotter {
             String fileName = getInternedFileName(dir);
             relativePathTracker.enter(fileName);
             if (relativePathTracker.isRoot() || shouldVisit(dir, fileName, true, relativePathTracker.getSegments())) {
-                builder.preVisitDirectory(intern(remapAbsolutePath(dir)));
+                builder.preVisitDirectory();
                 parentDirectories.addFirst(dir.toString());
                 return FileVisitResult.CONTINUE;
             } else {
@@ -326,10 +326,11 @@ public class DirectorySnapshotter {
             if (isNotFileSystemLoopException(exc)) {
                 throw new UncheckedIOException(String.format("Could not read directory path '%s'.", dir), exc);
             }
+            String absolutePath = intern(remapAbsolutePath(dir));
             AccessType accessType = AccessType.viaSymlink(
-                !symbolicLinkMappings.isEmpty() && symbolicLinkMappings.getFirst().target.equals(dir.toString())
+                !symbolicLinkMappings.isEmpty() && symbolicLinkMappings.getFirst().target.equals(absolutePath)
             );
-            builder.postVisitDirectory(accessType, dirName);
+            builder.postVisitDirectory(true, accessType, absolutePath, dirName);
             parentDirectories.removeFirst();
             return FileVisitResult.CONTINUE;
         }
