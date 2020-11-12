@@ -55,7 +55,7 @@ public class BlockingHttpServer extends ExternalResource implements ResettableEx
     private static final ExecutorService EXECUTOR_SERVICE = Executors.newCachedThreadPool();
     private final Lock lock = new ReentrantLock();
     protected final HttpServer server;
-    private HttpContext context;
+    private final HttpContext context;
     private final ChainingHttpHandler handler;
     private final int timeoutMs;
     private final int serverId;
@@ -198,6 +198,14 @@ public class BlockingHttpServer extends ExternalResource implements ResettableEx
             expectations.add((ResourceExpectation) call);
         }
         addNonBlockingHandler(expectations);
+    }
+
+    /**
+     * Expects the given requests to be made. Blocks until the given number of concurrent requests have been received, then releases the requests. Repeats
+     * until all of the requests have been received.
+     */
+    public void expectConcurrent(int concurrent, String... expectedRequests) {
+        throw new UnsupportedOperationException();
     }
 
     private void addNonBlockingHandler(final Collection<? extends ResourceExpectation> expectations) {
