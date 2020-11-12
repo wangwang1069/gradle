@@ -153,6 +153,84 @@ class DirectorySnapshotterTest extends Specification {
         ] as Set
     }
 
+    def "symlinked directories in tree are marked as accessed via symlink"() {
+        def rootDir = tmpDir.createDir("root")
+        def linkTarget = tmpDir.createDir("linkTarget")
+        linkTarget.file("other/text.txt").text = "text"
+        def symlink = rootDir.file("some/sub/dir")
+        symlink.createLink(linkTarget)
+
+        when:
+        def snapshot = directorySnapshotter.snapshot(rootDir.absolutePath, null, actuallyFiltered) as CompleteDirectorySnapshot
+        def relativePaths = SnapshotVisitorUtil.getRelativePaths(snapshot)
+        then:
+        relativePaths == ["some", "some/sub", "some/sub/dir", "some/sub/dir/other", "some/sub/dir/other/text.txt"]
+        SnapshotVisitorUtil.getAbsolutePaths(snapshot) == relativePaths.collect { new File(rootDir, it).absolutePath }
+        def symlinkedDir = snapshot.children[0].children[0].children[0] as CompleteDirectorySnapshot
+        symlinkedDir.accessType == AccessType.VIA_SYMLINK
+        symlinkedDir.absolutePath == symlink.absolutePath
+    }
+
+    def "symlinked directories are snapshot correctly"() {
+        def rootDir = tmpDir.file("root")
+        def linkTarget = tmpDir.createDir("linkTarget")
+        linkTarget.file("sub/text.txt").text = "text"
+        rootDir.createLink(linkTarget)
+
+        when:
+        def snapshot = directorySnapshotter.snapshot(rootDir.absolutePath, null, actuallyFiltered) as CompleteDirectorySnapshot
+        def relativePaths = SnapshotVisitorUtil.getRelativePaths(snapshot)
+        then:
+        relativePaths == ["sub", "sub/text.txt"]
+        SnapshotVisitorUtil.getAbsolutePaths(snapshot) == relativePaths.collect { new File(rootDir, it).absolutePath }
+        snapshot.accessType == AccessType.VIA_SYMLINK
+        snapshot.absolutePath == rootDir.absolutePath
+
+    }
+
+    def "can snapshot symlinked directories and files within another"() {
+        def rootDir = tmpDir.file("root")
+        def linkTarget1 = tmpDir.createDir("linkTarget1")
+        linkTarget1.file("in1/text.txt").text = "text"
+        def linkTarget2 = tmpDir.createDir("linkTarget2")
+        linkTarget2.createFile("in2/some/dir/file.txt")
+        def linkTarget3 = tmpDir.createDir("linkTarget3")
+        linkTarget3.createFile("in3/my/file.txt")
+        def linkTarget4 = tmpDir.createFile("linkTarget4")
+        rootDir.createLink(linkTarget1)
+        linkTarget1.file("in1/linked").createLink(linkTarget2)
+        linkTarget2.file("other/linked3").createLink(linkTarget3)
+        linkTarget3.file("another/fileLink").createLink(linkTarget4)
+
+        when:
+        def snapshot = directorySnapshotter.snapshot(rootDir.absolutePath, null, actuallyFiltered) as CompleteDirectorySnapshot
+        def relativePaths = SnapshotVisitorUtil.getRelativePaths(snapshot)
+        then:
+        relativePaths == [
+            "in1", "in1/linked",
+            "in1/linked/in2", "in1/linked/in2/some", "in1/linked/in2/some/dir", "in1/linked/in2/some/dir/file.txt",
+            "in1/linked/other", "in1/linked/other/linked3",
+            "in1/linked/other/linked3/another", "in1/linked/other/linked3/another/fileLink",
+            "in1/linked/other/linked3/in3", "in1/linked/other/linked3/in3/my", "in1/linked/other/linked3/in3/my/file.txt",
+            "in1/text.txt"
+        ]
+        SnapshotVisitorUtil.getAbsolutePaths(snapshot) == relativePaths.collect { new File(rootDir, it).absolutePath }
+        snapshot.accessType == AccessType.VIA_SYMLINK
+        snapshot.absolutePath == rootDir.absolutePath
+
+        def link2 = snapshot.children[0].children[0] as CompleteDirectorySnapshot
+        link2.accessType == AccessType.VIA_SYMLINK
+        link2.name == "linked"
+
+        def link3 = link2.children[1].children[0] as CompleteDirectorySnapshot
+        link3.accessType == AccessType.VIA_SYMLINK
+        link3.name == "linked3"
+
+        def link4 = link3.children[0].children[0] as RegularFileSnapshot
+        link4.accessType == AccessType.VIA_SYMLINK
+        link4.name == "fileLink"
+    }
+
     @Requires(TestPrecondition.SYMLINKS)
     def "broken symlinks are snapshotted as missing"() {
         def rootDir = tmpDir.createDir("root")
@@ -168,6 +246,7 @@ class DirectorySnapshotterTest extends Specification {
         def brokenSymlinkSnapshot = snapshot.children[0]
         brokenSymlinkSnapshot.class == MissingFileSnapshot
         brokenSymlinkSnapshot.accessType == AccessType.VIA_SYMLINK
+        SnapshotVisitorUtil.getRelativePaths(snapshot) == ["brokenSymlink", ]
         0 * _
 
         when:
