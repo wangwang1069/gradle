@@ -22,9 +22,9 @@ import org.gradle.internal.hash.Hasher;
 import org.gradle.internal.hash.Hashing;
 
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
 
 import static org.gradle.internal.snapshot.MerkleDirectorySnapshotBuilder.EmptyDirectoryHandlingStrategy.EXCLUDE_EMPTY_DIRS;
@@ -32,7 +32,7 @@ import static org.gradle.internal.snapshot.MerkleDirectorySnapshotBuilder.EmptyD
 public class MerkleDirectorySnapshotBuilder {
     private static final HashCode DIR_SIGNATURE = Hashing.signature("DIR");
 
-    private final Deque<Directory> directoryStack = new ArrayDeque<>();
+    private final Deque<Directory> directoryStack = new LinkedList<>();
     private final boolean sortingRequired;
     private CompleteFileSystemLocationSnapshot result;
 
